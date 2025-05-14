@@ -25,9 +25,9 @@ def search_for_data():
     return root
 
 def gen_df_paths():
-    Path_train = os.path.join(root,'data',dataSetName+'_train.csv')
-    Path_val = os.path.join(root,'data',dataSetName+'_val.csv')
-    Path_test = os.path.join(root,'data',dataSetName+'_test.csv')
+    Path_train = os.path.join(root,'csv',dataSetName+'_train.csv')
+    Path_val = os.path.join(root,'csv',dataSetName+'_val.csv')
+    Path_test = os.path.join(root,'csv',dataSetName+'_test.csv')
     return Path_train, Path_val, Path_test
 
 def mem_usage(tensor):
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     device = check_device()
     print("Device:", device)
     #Root params
-    dataSetName = '16k_songs'
+    dataSetName = 'masterDS'
     root = search_for_data()
     
     #Paths of the df (DATASET)
@@ -106,7 +106,7 @@ if __name__ == '__main__':
 
     #instanciando el modelo
 
-    os.listdir('./save/state')
+    print(os.listdir(os.path.abspath("./save")))
     pState = "./save/state/"
     pHist = "./save/history/"
     overWrite = False
@@ -149,7 +149,7 @@ if __name__ == '__main__':
         axes[1].set_ylabel('Loss')
 
     clasificador.train()
-    for j in tqdm(range(10)):
+    for j in tqdm(range(2)):
         for i in range(2):
             loss_log, acur_log = clasificador.train_loop(1,train_dataloader, test_optimizer , test_criterion, acuracy_fn, device)
             history['loss'] = torch.cat((history['loss'], loss_log), dim=0)
