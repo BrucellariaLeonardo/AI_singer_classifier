@@ -103,7 +103,7 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(trainDataSet, batch_size= 128,
                                   shuffle=True) #, num_workers= 2,pin_memory=True, drop_last=True
     #fn_test_data_loader(train_dataloader)    
-
+    #print(trainDataSet.dictionary)
     #instanciando el modelo
 
     print(os.listdir(os.path.abspath("./save")))
