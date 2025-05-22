@@ -104,10 +104,13 @@ class _Clasificador_padre(nn.Module):
     with torch.no_grad():
       loss_acum = 0
       accuracy_acum = 0
-      for input_batch, target_batch, _ in data_loader:
+      for input_batch, target_batch, rir_batch in data_loader:
         #datos a GPU o CPU
         input_batch = input_batch.to(device)
         target_batch = target_batch.to(device)
+        rir_batch = rir_batch.to(device)
+        #convoluciono la entrada con el rir
+        input_batch = self.apply_rir(input_batch, rir_batch)
         #normalizo la senial
         input_batch = self.audio_norm(input_batch)
         #prediccion

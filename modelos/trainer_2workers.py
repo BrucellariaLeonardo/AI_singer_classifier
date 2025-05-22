@@ -99,20 +99,22 @@ if __name__ == '__main__':
     valDf = pd.read_csv(Path_val)
 
     #Carga del data Loader
-    trainDataSet = DataSetConst(trainDf, "16k_file", "artist", Path_rir, os.listdir(Path_rir), rir_prob = 0.5, seed = 98)
+    rir_prob = 0.25
+    seed = 98
+    trainDataSet = DataSetConst(trainDf, "16k_file", "artist", Path_rir, os.listdir(Path_rir), rir_prob, seed)
     train_dataloader = DataLoader(trainDataSet, batch_size= 128,
                                   shuffle=True , num_workers= 2,pin_memory=True, drop_last=True)
     #fn_test_data_loader(train_dataloader)    
     #print(trainDataSet.dictionary)
     #instanciando el modelo
 
-    print(os.listdir(os.path.abspath("./save")))
+    #print(os.listdir(os.path.abspath("./save")))
     pState = "./save/state/"
     pHist = "./save/history/"
     overWrite = False
     show_metrics = True
     sLoad = -1 #save state a cargar
-    lr = 0.0001
+    lr = 0.00001
     weight_decay= 0.005
 
     MFCCCalculator.to(device)
@@ -137,76 +139,86 @@ if __name__ == '__main__':
     test_criterion = torch.nn.CrossEntropyLoss()
     print(clasificador.modules)
 
+################ Evaluation metrics ####################
+    eval_criterion = torch.nn.CrossEntropyLoss()
+    valDataSet = DataSetConst(valDf, "16k_file", "artist", Path_rir, os.listdir(Path_rir), rir_prob, seed)
+    val_dataloader = DataLoader(valDataSet, batch_size= 128,
+                            shuffle=True, num_workers= 2,
+                            pin_memory=True, drop_last=True)
+    val_history = {}
+    val_history['loss'] = []
+    val_history['acur'] = []
+
     if show_metrics:
         plt.ion()
         fig, axes = plt.subplots(nrows=2, ncols=1, figsize = (6,6))
-        l1, = axes[0].plot([], [])
-        l2, = axes[1].plot([], [])
+        l1_train, = axes[0].plot([], [], label = "Training")
+        l1_val, = axes[0].plot([], [], label = "Validation")
         axes[0].set_xlabel('Epoch')
         axes[0].set_ylabel('Acur')
+        axes[0].legend()
 
+        l2_train, = axes[1].plot([], [], label = "Training")
+        l2_val, = axes[1].plot([], [], label = "Validation"	)
+        l2_acur, = axes[1].plot([], [])
         axes[1].set_xlabel('Epoch')
         axes[1].set_ylabel('Loss')
+        axes[1].legend()
+    
 
-    clasificador.train()
-    for j in tqdm(range(20)):
-        for i in range(2):
-            loss_log, acur_log = clasificador.train_loop(1,train_dataloader, test_optimizer , test_criterion, acuracy_fn, device)
-            history['loss'] = torch.cat((history['loss'], loss_log), dim=0)
-            history['acur'] = torch.cat((history['acur'], acur_log), dim=0)
-            
-            if show_metrics:
-                # Grafica
-                l1.set_data(range(len(history['acur'])), history['acur'])
-                axes[0].relim()  # Recalculate data limits
-                axes[0].autoscale_view()  # Rescale axes
-
-                l2.set_data(range(len(history['loss'])), history['loss'])
-                axes[1].relim()  # Recalculate data limits
-                axes[1].autoscale_view()  # Rescale axes
+    stop = False 
+    while( not stop):
+        for j in tqdm(range(10)):
+            for i in range(5):
+                ############### TRAIN ####################
+                clasificador.train()
+                loss_log, acur_log = clasificador.train_loop(1,train_dataloader, test_optimizer , test_criterion, acuracy_fn, device)
+                history['loss'] = torch.cat((history['loss'], loss_log), dim=0)
+                history['acur'] = torch.cat((history['acur'], acur_log), dim=0)
                 
-                fig.canvas.draw()  # Redraw the figure
-                fig.canvas.flush_events()  # Ensure events are processed
-                plt.pause(0.5)
+                ############# EVAL ##########################
+                clasificador.eval()
+                loss_log, acur_log = clasificador.evaluate(val_dataloader, eval_criterion, acuracy_fn, device)
+                val_history['loss'].append(loss_log)
+                val_history['acur'].append(acur_log)
 
-        save_state = clasificador.state_dict()
-        n = len(os.listdir(pState))
-        #Guardo con dos digitos para asegurarme que no se desordena el indice a la hora de llamar a listdir para cargar el modelo
-        if(n < 10):
-            torch.save(save_state, f"{pState}/ss_0{n}.pt") 
-            torch.save(history, f"{pHist}/hist_0{n}.pt")
-        else:
-            torch.save(save_state, f"{pState}/ss_{n}.pt")
-            torch.save(history, f"{pHist}/hist_{n}.pt")
+                ############# METRICS #########################
+                if show_metrics:
+                    # Update traing graphics
+                    l1_train.set_data(range(len(history['acur'])), history['acur'])
+                    l2_train.set_data(range(len(history['loss'])), history['loss'])
+                    
+                    # Update validation graphics
+                    l1_val.set_data(range(len(val_history['acur'])), val_history['acur'])
+                    l2_val.set_data(range(len(val_history['loss'])), val_history['loss'])
+                    
+                    #update grphic limits
+                    axes[0].relim()  # Recalculate data limits
+                    axes[0].autoscale_view()  # Rescale axes
+                    axes[1].relim()  # Recalculate data limits
+                    axes[1].autoscale_view()  # Rescale axes
+                    
+                    #update plot
+                    fig.canvas.draw()  # Redraw the figure
+                    fig.canvas.flush_events()  # Ensure events are processed
+                    plt.pause(0.5)
 
-    if show_metrics:
-        plt.ioff()
-        plt.show()
+            save_state = clasificador.state_dict()
+            n = len(os.listdir(pState))
+            #Guardo con dos digitos para asegurarme que no se desordena el indice a la hora de llamar a listdir para cargar el modelo
+            if(n < 10):
+                torch.save(save_state, f"{pState}/ss_0{n}.pt") 
+                torch.save(history, f"{pHist}/hist_0{n}.pt")
+            else:
+                torch.save(save_state, f"{pState}/ss_{n}.pt")
+                torch.save(history, f"{pHist}/hist_{n}.pt")
 
-    #modo evaluacion
-    loss_fn = torch.nn.CrossEntropyLoss()
-    clasificador.eval()
-    valDataSet = DataSetConst(valDf, "16k_file", "artist", Path_rir, os.listdir(Path_rir), rir_prob = 0.7, seed = 98)
-    val_dataloader = DataLoader(valDataSet, batch_size= 128,
-                                shuffle=True, num_workers= 2,
-                                pin_memory=True, drop_last=True)
-
-    val_histo = []
-    max_acur = 0
-    mejor = None
-    mejor_name = None
-    for ss_name in tqdm(os.listdir(f"{pState}/")):
-        ss_load = torch.load(f"{pState}{ss_name}")
-        clasificador.load_state_dict(ss_load)
-        resultado_evalucion = clasificador.evaluate(val_dataloader, loss_fn, acuracy_fn, device)
-        val_histo.append(resultado_evalucion)
-        if resultado_evalucion[1] > max_acur:
-            max_acur = resultado_evalucion[1]
-            mejor = ss_load
-            mejor_name = ss_name
-    print(val_histo)
-    print("")
-    print("Mejor:", mejor_name)
-    print("Acur:", max_acur)
+        if show_metrics:
+            plt.ioff()
+            plt.show()
+        #ask the user for stop
+        stop =  (input("stop ? n/y" == "y"))
+    print("Dictionary:")
+    print(trainDataSet.dictionary)
 
     
